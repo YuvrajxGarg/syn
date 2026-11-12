@@ -32,10 +32,10 @@ body {
   flex-direction: row;
   align-items: flex-end;
 }
-/* Mark: cut from the app icon by tools/make_icons.py (304:126 source ratio). */
+/* Mark: brand/mark@2x.png (462x192), copied by tools/make_icons.py. */
 .mark {
   height: 24px;
-  width: 59px;
+  width: 58px;
 }
 .status {
   display: flex;
