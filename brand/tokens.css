@@ -1,0 +1,25 @@
+/* SYN brand tokens. The app's syn/ui/styles.css uses these same values. */
+:root {
+  --bg: #0b0b0c;
+  --sidebar: #101012;
+  --card: #17171a;
+  --raised: #212125;
+  --fill: rgba(255,255,255,.055);
+  --fill-hover: rgba(255,255,255,.085);
+  --fill-on: rgba(255,255,255,.12);
+  --stroke: rgba(255,255,255,.075);
+  --stroke-strong: rgba(255,255,255,.14);
+  --text: rgba(255,255,255,.94);
+  --text2: rgba(255,255,255,.56);
+  --text3: rgba(255,255,255,.34);
+  --accent: #ccff4d;
+  --warn: #ffb359;
+  --danger: #ff6b66;
+  --r: 10px;
+  --control: 36px;
+  --control-lg: 44px;
+  --side: 320px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}

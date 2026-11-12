@@ -1,0 +1,139 @@
+# Builds Syn for macOS and Windows and attaches the apps to a GitHub release when
+#   - a version tag (v1.2.3) is pushed, or
+#   - VERSION changes on main (the tag v<VERSION> is created for that commit). Installed copies check
+# the latest release for updates:
+# What people download (installer/ builds these):
+#   macOS   -> Syn.dmg          (drag to Applications)
+#   Windows -> Syn-Setup.exe    (setup wizard)
+# What installed copies update from (keep these: every existing install uses them):
+#   macOS   -> Syn-mac.zip      + .sha256
+#   Windows -> Syn-windows.zip  + .sha256
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v1.2.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      ref: ${{ steps.tag.outputs.ref }}
+      skip: ${{ steps.tag.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Work out the tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then tag="$INPUT_TAG"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then tag="$GITHUB_REF_NAME"
+          else tag="v$(tr -d '[:space:]' < VERSION)"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -n "$INPUT_TAG" ]; then echo "ref=$INPUT_TAG" >> "$GITHUB_OUTPUT"; else echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"; fi
+          # A VERSION bump on main for a version that's already released does nothing.
+          if [ "$GITHUB_REF_TYPE" = "branch" ] && [ -z "$INPUT_TAG" ] && gh release view "$tag" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Created as a draft: installed copies only see it once the builds are attached
+      # and the publish job below makes it public.
+      - name: Create the release if it doesn't exist
+        if: steps.tag.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 && exit 0
+          if [ "$GITHUB_REF_TYPE" = "branch" ] && [ -z "$INPUT_TAG" ]; then
+            gh release create "$TAG" --title "Syn ${TAG#v}" --generate-notes --target "$GITHUB_SHA" --draft
+          else
+            gh release create "$TAG" --title "Syn ${TAG#v}" --generate-notes --verify-tag --draft
+          fi
+
+  build:
+    needs: release
+    if: needs.release.outputs.skip != 'true'
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    strategy:
+      matrix:
+        os: [macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Set version from the tag
+        run: echo "${TAG#v}" > VERSION
+      - run: pip install pyinstaller certifi -r requirements.txt
+      - run: python -m unittest discover tests
+      - name: Build the Premiere panel (.ccx)
+        run: if [ -f premiere/build_ccx.py ]; then python premiere/build_ccx.py --version "$(tr -d '[:space:]' < VERSION)"; fi
+      - run: pyinstaller --noconfirm --log-level WARN Syn.spec
+      - name: Smoke-test the built app
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then python tests/smoke_app.py dist/Syn.app/Contents/MacOS/Syn
+          else python tests/smoke_app.py dist/Syn/Syn.exe; fi
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          ditto -c -k --keepParent Syn.app Syn-mac.zip
+          shasum -a 256 Syn-mac.zip > Syn-mac.zip.sha256
+          cat Syn-mac.zip.sha256
+      - name: Disk image (macOS)
+        if: runner.os == 'macOS'
+        run: installer/build_mac.sh Syn && installer/test_mac.sh Syn
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd dist
+          Compress-Archive -Path Syn -DestinationPath Syn-windows.zip
+          $h = (Get-FileHash Syn-windows.zip -Algorithm SHA256).Hash.ToLower()
+          "$h  Syn-windows.zip" | Out-File -Encoding ascii -NoNewline Syn-windows.zip.sha256
+          Get-Content Syn-windows.zip.sha256
+      - name: Setup wizard (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          installer/build_windows.ps1 -App Syn -Version $env:TAG -Url https://syn.pxlvzn.in
+          installer/test_windows.ps1 -App Syn -Smoke "python tests/smoke_app.py"
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then files="dist/Syn-mac.zip* dist/Syn.dmg*"
+          else files="dist/Syn-windows.zip* dist/Syn-Setup.exe*"; fi
+          gh release upload "$TAG" $files --clobber
+
+  publish:
+    needs: [release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release now that both apps are attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: gh release edit "$TAG" --draft=false --latest
