@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SYN</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="splash" class="pywebview-drag-region">
+    <div class="glow"></div>
+    <div class="wordmark anim-syn splash-mark" style="--size:84px"><span class="synw"><span class="ch">s</span><span class="ch">y</span><span class="ch">n</span><i class="link"><b></b><i></i><b></b></i></span></div>
+  </div>
+
+  <div id="app">
+    <aside id="sidebar">
+      <div class="titlebar pywebview-drag-region"></div>
+      <div class="side-scroll">
+        <section class="sect" id="projects-sect">
+          <div class="sect-head"><b>Projects</b><span id="projects-count"></span></div>
+          <div class="projects" id="projects"></div>
+        </section>
+
+        <section class="sect">
+          <div class="sect-head"><b>Add</b><span>XML or footage</span><button class="link-btn" id="add-folder">Add folder</button></div>
+          <button id="dropzone" class="dropzone">
+            <div class="dz-icon" data-icon="upload"></div>
+            <div class="dz-text"><b>Drop a Premiere XML or footage</b><span>Cameras, recorders, phones. Any number.</span></div>
+          </button>
+        </section>
+
+        <section class="sect">
+          <div class="sect-head"><b>Premiere Pro</b></div>
+          <div class="premiere" id="premiere"></div>
+        </section>
+
+        <section class="sect">
+          <div class="sect-head"><b>Sync</b></div>
+          <div class="panel">
+            <div class="panel-row col">
+              <div class="tabs" id="mode">
+                <button data-v="fast" class="on"><i data-icon="bolt"></i>Fast</button>
+                <button data-v="thorough"><i data-icon="search"></i>Thorough</button>
+              </div>
+              <div class="hint" id="mode-hint"></div>
+            </div>
+            <button class="panel-row opt" data-key="drift"><div class="t"><b>Check for clock drift</b><span>Flags recorders that run fast or slow</span></div><span class="switch"></span></button>
+            <button class="panel-row opt" data-key="keep_camera_audio"><div class="t"><b>Keep camera audio</b><span>Off: scratch audio is muted when a recorder synced</span></div><span class="switch"></span></button>
+            <button class="panel-row opt" data-key="mark_low"><div class="t"><b>Mark clips to check</b><span>Label colour and marker on low confidence clips</span></div><span class="switch"></span></button>
+          </div>
+        </section>
+      </div>
+      <div class="side-action" id="side-action"></div>
+      <footer id="footer">
+        <div class="frow" id="ffmpeg-note"></div>
+        <div class="frow brandrow">
+          <img class="mark mark-sm" src="mark.svg" alt="SYN">
+          <span id="version"></span>
+          <button class="update-pill hidden" id="update-pill"></button>
+        </div>
+      </footer>
+    </aside>
+
+    <main id="content">
+      <div class="topbar pywebview-drag-region">
+        <div class="ptitle" id="ptitle"></div>
+        <div class="stats" id="stats"></div>
+        <div class="top-actions">
+          <div class="tabs filter hidden" id="filter">
+            <button data-v="all" class="on">All</button>
+            <button data-v="check">To check <em id="n-check"></em></button>
+            <button data-v="unsynced">Not synced <em id="n-unsynced"></em></button>
+          </div>
+          <button class="btn-icon filled" id="density" title="Lane height"><i data-icon="rows"></i></button>
+          <button class="btn-icon filled" id="fit" title="Fit to window (F)"><i data-icon="fit"></i></button>
+          <button class="btn-icon filled" id="open-settings" title="Settings"><i data-icon="gear"></i></button>
+        </div>
+      </div>
+
+      <div id="banner" class="banner hidden">
+        <div class="eq"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="b-text"><b id="banner-title"></b><span id="banner-sub"></span></div>
+        <div class="b-bar"><div id="banner-bar"></div></div>
+        <button class="btn-quiet" id="banner-cancel">Cancel</button>
+      </div>
+
+      <div id="timeline" class="hidden">
+        <div id="heads"><div id="heads-inner"></div></div>
+        <div id="lanes-wrap">
+          <canvas id="tl"></canvas>
+          <div id="tip" class="tip hidden"></div>
+        </div>
+        <div id="overview-wrap"><canvas id="overview"></canvas></div>
+        <div id="vscroll"><div id="vthumb"></div></div>
+      </div>
+
+      <aside id="inspector" class="hidden"></aside>
+
+      <div id="empty" class="empty">
+        <div class="logomark lg"><img class="mark" src="mark.svg" alt="SYN" style="height:24px"></div>
+        <h3>Sync footage by its sound</h3>
+        <p>Drop a Premiere XML, or the camera and recorder files themselves.<br>SYN lines every clip up and hands back a synced sequence.</p>
+        <div class="steps">
+          <div><b>1</b><span>In Premiere: <em>File › Export › Final Cut Pro XML</em>, or use the SYN panel</span></div>
+          <div><b>2</b><span>Drop it here and press <em>Sync</em></span></div>
+          <div><b>3</b><span>Check anything marked, then <em>Send to Premiere</em> or save the XML</span></div>
+        </div>
+      </div>
+      <div id="loading" class="loading hidden"><span class="spinner"></span><span id="loading-text"></span></div>
+    </main>
+  </div>
+
+  <div id="welcome" class="hidden"></div>
+  <div id="drop" class="hidden"><div class="drop-frame"></div><div class="drop-inner"><div class="dz-icon big" data-icon="layers"></div>Drop to open<small>A Premiere XML, or footage and folders</small></div></div>
+  <div id="modal-root"></div>
+  <div id="toasts"></div>
+  <script src="app.js"></script>
+</body>
+</html>

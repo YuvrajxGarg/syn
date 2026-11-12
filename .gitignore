@@ -1,2 +1,10 @@
+.venv/
+.venv-build/
+build/
+dist/
 __pycache__/
 *.pyc
+.claude/*
+!.claude/hooks/
+!.claude/settings.json
+.DS_Store

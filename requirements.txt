@@ -1,0 +1,8 @@
+# App window (WebKit on macOS, Edge WebView2 on Windows)
+pywebview>=5.0
+# Audio fingerprints and cross-correlation
+numpy>=1.24
+# ffmpeg binary for reading camera and recorder audio (used if ffmpeg isn't installed system-wide)
+imageio-ffmpeg>=0.4.9
+# Trusted certificates for update checks in the packaged app
+certifi

@@ -1,0 +1,45 @@
+# Checks the installers on pull requests that touch them: builds the app, the
+# Windows setup wizard and the macOS disk image, installs and uninstalls the
+# setup, and keeps both as downloadable artifacts. Releases build them in release.yml.
+name: Installer
+
+on:
+  pull_request:
+    paths: [installer/**, .github/workflows/installer.yml, .github/workflows/release.yml, Syn.spec, premiere/build_ccx.py]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyinstaller certifi -r requirements.txt
+      - name: Build the Premiere panel (.ccx)
+        run: if [ -f premiere/build_ccx.py ]; then python premiere/build_ccx.py --version "$(tr -d '[:space:]' < VERSION)"; fi
+      - run: pyinstaller --noconfirm --log-level WARN Syn.spec
+      - name: Disk image (macOS)
+        if: runner.os == 'macOS'
+        run: installer/build_mac.sh Syn && installer/test_mac.sh Syn
+      - name: Setup wizard (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          installer/build_windows.ps1 -App Syn -Version "$(Get-Content VERSION)" -Url https://syn.pxlvzn.in
+          installer/test_windows.ps1 -App Syn -Smoke "python tests/smoke_app.py"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Syn-${{ runner.os }}
+          path: |
+            dist/Syn.dmg
+            dist/Syn-Setup.exe
+          if-no-files-found: error
