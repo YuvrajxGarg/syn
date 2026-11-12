@@ -15,6 +15,7 @@ import random
 import threading
 import time
 import uuid
+import socketserver
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -244,12 +245,24 @@ class Mock:
 
         for port in PORTS:
             try:
-                srv = ThreadingHTTPServer(("127.0.0.1", port), H)
+                srv = _LoopbackServer(("127.0.0.1", port), H)
                 self.port = port
                 return srv
             except OSError:
                 continue
         raise SystemExit("no free port in 47480-47489")
+
+
+class _LoopbackServer(ThreadingHTTPServer):
+    """HTTPServer.server_bind calls socket.getfqdn(), a reverse DNS lookup that can stall
+    for many seconds on macOS runners. We only listen on 127.0.0.1, so skip it."""
+
+    daemon_threads = True
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name, self.server_port = host, port
 
 
 def _atomic(path: Path, obj) -> None:

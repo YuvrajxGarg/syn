@@ -135,7 +135,9 @@ async function startMock(dataDir, args = []) {
   const py = process.env.PYTHON || "python3";
   const child = spawn(py, [script, "--data-dir", dataDir, "--speed", "8", ...args], { stdio: ["ignore", "pipe", "inherit"] });
   await new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error("mock SYN did not start")), 10000);
+    // On failure, kill the mock: a live child keeps node --test from ever exiting.
+    const fail = (e) => { child.kill("SIGKILL"); reject(e); };
+    const t = setTimeout(() => fail(new Error("mock SYN did not start")), 20000);
     child.stdout.on("data", (d) => {
       if (String(d).includes("mock SYN")) {
         clearTimeout(t);
