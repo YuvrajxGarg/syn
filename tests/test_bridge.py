@@ -50,6 +50,11 @@ def wait(cond, timeout=60):
 
 
 @unittest.skipUnless(media.find_ffmpeg(), "needs ffmpeg")
+
+def _load(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
 class BridgeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -140,14 +145,14 @@ class BridgeTest(unittest.TestCase):
             jid = json.load(f)["jobId"]
         self.assertFalse(os.path.exists(rq))
         jf = os.path.join(self.b.dir, "jobs", jid + ".json")
-        wait(lambda: os.path.isfile(jf) and json.load(open(jf))["state"] == "review")
+        wait(lambda: os.path.isfile(jf) and _load(jf)["state"] == "review")
         # bad op answers with an error
         rq2 = os.path.join(self.b.dir, "requests", "r2.json")
         with open(rq2, "w") as f:
             json.dump({"op": "nope", "body": {}}, f)
         resp2 = os.path.join(self.b.dir, "responses", "r2.json")
         wait(lambda: os.path.isfile(resp2))
-        self.assertEqual(json.load(open(resp2))["error"]["code"], "bad_op")
+        self.assertEqual(_load(resp2)["error"]["code"], "bad_op")
 
     def test_bad_source(self):
         token = self.pair()

@@ -50,7 +50,11 @@ def premiere_xml(d):
 
 class PathTest(unittest.TestCase):
     def test_round_trip(self):
-        for p in ("/Users/me/My Shoot/A001 #2.mov", "/Volumes/SSD/día 1/ZOOM.WAV"):
+        if os.name == "nt":
+            paths = ("C:\\Users\\me\\My Shoot\\A001 #2.mov", "E:\\día 1\\ZOOM.WAV")
+        else:
+            paths = ("/Users/me/My Shoot/A001 #2.mov", "/Volumes/SSD/día 1/ZOOM.WAV")
+        for p in paths:
             self.assertEqual(xmeml.path_from_url(xmeml.url_from_path(p)), p)
 
     def test_premiere_styles(self):
@@ -141,7 +145,7 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(info["audio_tracks"], 4)       # A ch1/ch2, ZOOM ch1/ch2
         v = seq.find("media/video/track/clipitem")
         self.assertEqual(int(v.findtext("start")), round(12.5 * 24000 / 1001.0))
-        self.assertTrue(v.find("file").findtext("pathurl").startswith("file://localhost/x/A001.mov"))
+        self.assertEqual(xmeml.path_from_url(v.find("file").findtext("pathurl")), os.path.abspath("/x/A001.mov"))
         # A's three clipitems are linked together
         self.assertEqual(len(v.findall("link")), 3)
         st = [ci.findtext("sourcetrack/trackindex") for ci in seq.findall("media/audio/track/clipitem")]
