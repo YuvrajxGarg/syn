@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" width="880" alt="SYN with a 40-track wedding sequence synced, one clip selected for checking">
+  <img src="docs/screenshot.png" width="880" alt="SYN with a 10-track wedding sequence synced, one clip flagged to check">
 </p>
 
 ## Download

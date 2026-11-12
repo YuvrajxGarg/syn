@@ -55,7 +55,7 @@
   const landed = new Map();    // clip id -> time it landed (for the lock flash)
   let lanes = [], laneY = [], sections = [], clipsById = new Map(), contentH = 0;
 
-  const laneH = () => (settings.density === 'compact' ? 24 : 42);
+  const laneH = () => (settings.density === 'compact' ? 26 : 50);
   const confClass = (c) => (c >= 0.8 ? 'hi' : c >= 0.5 ? 'mid' : 'lo');
   function statusOf(c) {
     if (!P) return 'pending';
@@ -217,13 +217,14 @@
     c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
   }
 
+  // [body fill, status colour (left bar), waveform]
   const COLORS = {
-    pending: ['rgba(255,255,255,.07)', 'rgba(255,255,255,.34)', 'rgba(255,255,255,.12)'],
-    synced: ['rgba(204,255,77,.13)', 'rgba(204,255,77,.85)', 'rgba(204,255,77,.4)'],
-    low: ['rgba(255,179,89,.13)', 'rgba(255,179,89,.85)', 'rgba(255,179,89,.5)'],
-    unsynced: ['rgba(255,107,102,.08)', 'rgba(255,107,102,.6)', 'rgba(255,107,102,.4)'],
-    offline: ['rgba(255,107,102,.05)', 'rgba(255,107,102,.4)', 'rgba(255,107,102,.3)'],
-    excluded: ['rgba(255,255,255,.03)', 'rgba(255,255,255,.2)', 'rgba(255,255,255,.08)'],
+    pending: ['rgba(255,255,255,.055)', 'rgba(255,255,255,.28)', 'rgba(255,255,255,.13)'],
+    synced: ['rgba(255,255,255,.07)', 'rgba(204,255,77,.75)', 'rgba(255,255,255,.2)'],
+    low: ['rgba(255,179,89,.10)', WARN, 'rgba(255,179,89,.38)'],
+    unsynced: ['rgba(255,107,102,.07)', DANGER, 'rgba(255,107,102,.3)'],
+    offline: ['rgba(255,107,102,.04)', 'rgba(255,107,102,.6)', 'rgba(255,107,102,.22)'],
+    excluded: ['rgba(255,255,255,.025)', 'rgba(255,255,255,.18)', 'rgba(255,255,255,.07)'],
   };
 
   function draw() {
@@ -302,76 +303,110 @@
     const t = posOf(cl, now);
     const x = xOf(t), w = Math.max(2, cl.duration * view.pps);
     if (x > W || x + w < 0) return;
-    const pad = h > 30 ? 4 : 3;
-    const top = y + pad, ch = h - pad * 2;
+    const roomy = h > 30;
+    const pad = roomy ? 5 : 3;
+    const top = y + pad, ch = h - pad * 2, R = 6;
     const sel = view.sel === cl.id;
     const hov = view.hover === cl.id;
-    const [fill, edge, wave] = COLORS[st] || COLORS.pending;
+    const [fill, status, wave] = COLORS[st] || COLORS.pending;
+    const listening = reading.has(cl.id);
     c.globalAlpha = dim ? 0.25 : 1;
-    roundRect(c, x, top, w, ch, 5);
+    // body: a quiet card; the status is a slim bar on the left, not a coloured outline
+    roundRect(c, x, top, w, ch, R);
     c.fillStyle = fill; c.fill();
-    // waveform
+    if (sel || hov) { c.fillStyle = sel ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.035)'; c.fill(); }
+    c.save(); roundRect(c, x, top, w, ch, R); c.clip();
+    if (w > 8) { c.fillStyle = status; c.fillRect(x, top, 3, ch); }
+    // waveform: one smooth, mirrored outline in the lower part of the card, under the name
     const env = envs.get(cl.id);
-    if (env && w > 6) {
-      c.save(); roundRect(c, x, top, w, ch, 5); c.clip();
-      c.fillStyle = st === 'pending' && reading.has(cl.id) ? 'rgba(204,255,77,.5)' : wave;
-      const mid = top + ch / 2;
-      const x0 = Math.max(0, x), x1 = Math.min(W, x + w);
-      const per = env.rate / view.pps;   // env samples per pixel
-      for (let px = Math.floor(x0); px < x1; px += 2) {
-        const s0 = Math.floor((px - x) * per), s1 = Math.max(s0 + 1, Math.floor((px + 2 - x) * per));
-        let m = 0;
-        for (let s = s0; s < s1 && s < env.data.length; s++) if (env.data[s] > m) m = env.data[s];
-        const a = (m / 255) * (ch / 2 - 2);
-        if (a > 0.4) c.fillRect(px, mid - a, 1.4, a * 2);
+    if (env && w > 24 && roomy) {
+      const band = ch - 21, mid = top + 19 + band / 2, amp = band / 2;
+      const x0 = Math.max(x + 6, 0), x1 = Math.min(x + w - 4, W);
+      const per = env.rate / view.pps, step = 2;
+      const pts = [];
+      for (let px = x0; px <= x1; px += step) {
+        const s0 = Math.floor((px - x) * per), s1 = Math.max(s0 + 1, Math.floor((px + step - x) * per));
+        let m = 0, n = 0;
+        for (let k = s0; k < s1 && k < env.data.length; k++) { m += env.data[k]; n++; }
+        pts.push([px, n ? m / n / 255 : 0]);
       }
-      c.restore();
+      for (let i = 1; i < pts.length - 1; i++) pts[i][1] = (pts[i - 1][1] + 2 * pts[i][1] + pts[i + 1][1]) / 4;
+      if (pts.length > 1) {
+        c.beginPath();
+        c.moveTo(pts[0][0], mid);
+        for (const [px, v] of pts) c.lineTo(px, mid - Math.max(0.6, v * amp));
+        for (let i = pts.length - 1; i >= 0; i--) c.lineTo(pts[i][0], mid + Math.max(0.6, pts[i][1] * amp));
+        c.closePath();
+        c.fillStyle = listening ? 'rgba(204,255,77,.45)' : wave;
+        c.fill();
+      }
     }
     // listening: a lime scan line sweeping the clip while its sound is read
-    if (reading.has(cl.id)) {
+    if (listening) {
       const k = (now / 900) % 1;
       const sx = x + k * w;
       const g = c.createLinearGradient(sx - 40, 0, sx, 0);
-      g.addColorStop(0, 'rgba(204,255,77,0)'); g.addColorStop(1, 'rgba(204,255,77,.45)');
-      c.save(); roundRect(c, x, top, w, ch, 5); c.clip();
+      g.addColorStop(0, 'rgba(204,255,77,0)'); g.addColorStop(1, 'rgba(204,255,77,.3)');
       c.fillStyle = g; c.fillRect(sx - 40, top, 40, ch);
       c.fillStyle = ACCENT; c.fillRect(sx, top, 1.5, ch);
-      c.restore();
     }
-    // edge
-    roundRect(c, x + 0.5, top + 0.5, w - 1, ch - 1, 5);
-    c.lineWidth = sel ? 2 : 1;
-    c.strokeStyle = sel ? '#fff' : (hov ? 'rgba(255,255,255,.5)' : edge);
-    if (st === 'unsynced' || st === 'offline') c.setLineDash([4, 3]);
+    c.restore();
+    // edge: a hairline, white when selected, dashed when it couldn't be placed
+    roundRect(c, x + 0.5, top + 0.5, w - 1, ch - 1, R);
+    c.lineWidth = sel ? 1.5 : 1;
+    c.strokeStyle = sel ? 'rgba(255,255,255,.95)' : hov ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.07)';
+    if (st === 'unsynced' || st === 'offline') { c.setLineDash([4, 3]); if (!sel && !hov) c.strokeStyle = 'rgba(255,107,102,.45)'; }
     c.stroke(); c.setLineDash([]);
     // lock flash when it lands
     const lt = landed.get(cl.id);
     if (lt != null && now - lt < 700) {
       const k = (now - lt) / 700;
-      roundRect(c, x - 3 * k, top - 3 * k, w + 6 * k, ch + 6 * k, 6);
-      c.strokeStyle = `rgba(204,255,77,${0.8 * (1 - k)})`; c.lineWidth = 2; c.stroke();
+      roundRect(c, x - 3 * k, top - 3 * k, w + 6 * k, ch + 6 * k, R + 1);
+      c.strokeStyle = `rgba(204,255,77,${0.7 * (1 - k)})`; c.lineWidth = 1.5; c.stroke();
     }
-    // label
+    // name, and the confidence in small type at the right end
     if (w > 46 && h > 20) {
-      c.save(); c.beginPath(); c.rect(x + 6, top, w - 12, ch); c.clip();
-      c.font = `600 ${h > 30 ? 11 : 10}px ` + getComputedStyle(document.body).fontFamily;
-      c.textBaseline = 'top';
-      c.fillStyle = 'rgba(255,255,255,.9)';
-      const ty = h > 30 ? top + 4 : top + (ch - 11) / 2;
-      // the confidence sits at the right end; the name gets whatever room is left
+      c.save(); c.beginPath(); c.rect(x + 8, top, w - 14, ch); c.clip();
+      c.font = `500 ${roomy ? 11 : 10.5}px ` + getComputedStyle(document.body).fontFamily;
+      c.textBaseline = 'middle';
+      const ty = roomy ? top + 10.5 : top + ch / 2;
       let label = '', tw = 0;
-      if (P.state === 'review' && (st === 'synced' || st === 'low') && w > 90) {
+      if (P.state === 'review' && ((st === 'synced' && w > 190) || (st === 'low' && w > 110))) {
         label = Math.round(cl.confidence * 100) + '%';
+        c.font = `600 10px ` + getComputedStyle(document.body).fontFamily;
         tw = c.measureText(label).width;
+        c.font = `500 ${roomy ? 11 : 10.5}px ` + getComputedStyle(document.body).fontFamily;
       }
-      const lx = label ? Math.min(x + w - tw - 8, Math.max(x + 7, W - tw - 8)) : x + w;
-      c.save(); c.beginPath(); c.rect(x + 6, top, Math.max(0, lx - x - 12), ch); c.clip();
-      c.fillText(cl.name, x + 7, ty);
+      const lx = label ? Math.min(x + w - tw - 8, Math.max(x + 10, W - tw - 8)) : x + w;
+      c.save(); c.beginPath(); c.rect(x + 8, top, Math.max(0, lx - x - 16), ch); c.clip();
+      c.fillStyle = st === 'excluded' ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.86)';
+      c.fillText(fitLabel(c, cl.name, lx - x - 18), x + 10, ty);
       c.restore();
-      if (label) { c.fillStyle = st === 'synced' ? ACCENT : WARN; c.fillText(label, lx, ty); }
+      if (label) {
+        c.font = `600 10px ` + getComputedStyle(document.body).fontFamily;
+        c.fillStyle = st === 'synced' ? 'rgba(255,255,255,.42)' : WARN;
+        c.fillText(label, lx, ty);
+      }
       c.restore();
     }
     c.globalAlpha = 1;
+  }
+
+  // shorten a label to fit, with an ellipsis instead of a hard cut mid-letter
+  const fitCache = new Map();
+  function fitLabel(c, s, max) {
+    const key = c.font + '|' + s + '|' + Math.round(max);
+    let r = fitCache.get(key);
+    if (r != null) return r;
+    if (c.measureText(s).width <= max) r = s;
+    else {
+      let lo = 0, hi = s.length;
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (c.measureText(s.slice(0, m) + '…').width <= max) lo = m; else hi = m - 1; }
+      r = lo ? s.slice(0, lo).replace(/[ ._-]+$/, '') + '…' : '';
+    }
+    if (fitCache.size > 4000) fitCache.clear();
+    fitCache.set(key, r);
+    return r;
   }
 
   function drawOverview() {
@@ -390,9 +425,10 @@
         const st = statusOf(cl);
         const s = P.state === 'review' ? (cl.at != null ? cl.at : unsyncedAt.get(cl.id)) : pre.get(cl.id);
         if (s == null) continue;
-        c.fillStyle = st === 'synced' ? 'rgba(204,255,77,.55)' : st === 'low' ? 'rgba(255,179,89,.6)' :
-          st === 'unsynced' || st === 'offline' ? 'rgba(255,107,102,.5)' : 'rgba(255,255,255,.25)';
-        c.fillRect(((s - a) / span) * w, 2 + i * lh, Math.max(1, (cl.duration / span) * w), Math.max(1, lh - (lh > 3 ? 1 : 0)));
+        // neutral clips, colour only where something needs a look
+        c.fillStyle = st === 'low' ? 'rgba(255,179,89,.75)' : st === 'unsynced' || st === 'offline' ? 'rgba(255,107,102,.7)' :
+          st === 'synced' ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.14)';
+        c.fillRect(((s - a) / span) * w, 3 + i * lh, Math.max(1, (cl.duration / span) * w - 1), Math.max(1, lh - (lh > 2.5 ? 1 : 0)));
       }
     });
     // viewport
