@@ -3,5 +3,7 @@
 build/
 dist/
 __pycache__/
-.claude/
+.claude/*
+!.claude/hooks/
+!.claude/settings.json
 .DS_Store
