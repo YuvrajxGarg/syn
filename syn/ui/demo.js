@@ -4,8 +4,10 @@
 // ?demo=review   already synced, with a clip to check selected
 // ?demo=empty    no project
 // ?demo=welcome  first launch
+// &small         a small shoot (4 cameras, 2 recorders), for the README screenshot
 const Q = new URLSearchParams(location.search);
 const MODE = Q.get('demo') || 'ready';
+const SMALL = Q.has('small');
 
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -26,13 +28,15 @@ function envFor(dur, loud) {
 }
 
 function makeProject() {
-  const CAMS = 'ABCDEFGHIJKLMNOPQRST'.split('');
-  const TAKES = [0, 640, 1290, 1900, 2610];
+  const CAMS = (SMALL ? 'ABCD' : 'ABCDEFGHIJKLMNOPQRST').split('');
+  const TAKES = SMALL ? [0, 640, 1290] : [0, 640, 1290, 1900, 2610];
+  const CAM_AUDIO = Math.min(14, CAMS.length);
+  const RECS = SMALL ? ['ZOOM F8', 'Lav Ana'] : ['ZOOM F8 · 1', 'ZOOM F8 · 2', 'Lav Ana', 'Lav Ravi', 'Boom', 'Room'];
   const lanes = [], clips = [], env = {};
   CAMS.forEach((c, i) => lanes.push({ id: 'v' + (i + 1), label: 'V' + (i + 1), kind: 'video', name: `Cam ${c}` }));
-  for (let i = 0; i < 14; i++) lanes.push({ id: 'a' + (i + 1), label: 'A' + (i + 1), kind: 'audio', name: `Cam ${CAMS[i]}` });
-  ['ZOOM F8 · 1', 'ZOOM F8 · 2', 'Lav Ana', 'Lav Ravi', 'Boom', 'Room'].forEach((n, i) =>
-    lanes.push({ id: 'a' + (15 + i), label: 'A' + (15 + i), kind: 'audio', name: n }));
+  for (let i = 0; i < CAM_AUDIO; i++) lanes.push({ id: 'a' + (i + 1), label: 'A' + (i + 1), kind: 'audio', name: `Cam ${CAMS[i]}` });
+  RECS.forEach((n, i) =>
+    lanes.push({ id: 'a' + (CAM_AUDIO + 1 + i), label: 'A' + (CAM_AUDIO + 1 + i), kind: 'audio', name: n }));
 
   let k = 0;
   const truth = {};
@@ -44,14 +48,15 @@ function makeProject() {
       const at = T + (rnd() - 0.5) * 50;
       truth[id] = at;
       const ln = ['v' + (ci + 1)];
-      if (ci < 14) ln.push('a' + (ci + 1));
+      if (ci < CAM_AUDIO) ln.push('a' + (ci + 1));
       clips.push({ id, name: `${c}${String(ti + 1).padStart(3, '0')}_C${String(ti * 3 + ci).padStart(3, '0')}.MP4`, path: `/Volumes/SHOOT/${c}/${id}.MP4`,
         lanes: ln, duration: +dur.toFixed(3), video: true, channels: 2, orig: null });
       env[id] = envFor(dur, 0.6 + rnd() * 0.3);
     });
   });
-  const rec = [['a15', 'a16'], ['a17', 'a18'], ['a19', 'a20']];
-  const recName = ['ZOOM', 'LAV', 'BOOM'];
+  const R = (i) => 'a' + (CAM_AUDIO + 1 + i);
+  const rec = SMALL ? [[R(0)], [R(1)]] : [[R(0), R(1)], [R(2), R(3)], [R(4), R(5)]];
+  const recName = SMALL ? ['ZOOM', 'LAV'] : ['ZOOM', 'LAV', 'BOOM'];
   rec.forEach((ln, ri) => TAKES.forEach((T, ti) => {
     const id = `f${++k}`;
     const dur = 560 + rnd() * 60;
@@ -78,8 +83,8 @@ function makeProject() {
 
 function synced(P, truth) {
   const recs = P.clips.filter((c) => !c.video);
-  const low = new Set(['f7', 'f41', 'f63']);
-  const lost = new Set(['f58']);
+  const low = new Set(SMALL ? ['f8'] : ['f7', 'f41', 'f63']);
+  const lost = new Set(SMALL ? [] : ['f58']);
   for (const c of P.clips) {
     const best = recs[Math.floor(rnd() * recs.length)];
     const curve = Array.from({ length: 61 }, (_, i) => Math.exp(-((i - 30) ** 2) / 6) * (low.has(c.id) ? 0.45 : 1) + rnd() * 0.12);

@@ -171,7 +171,9 @@ body.win .titlebar { display: none; }
 #footer { padding: 4px 22px 14px; display: flex; flex-direction: column; gap: 6px; color: var(--text3); font-size: 11.5px; }
 #footer .frow { display: flex; align-items: center; gap: 8px; min-height: 16px; }
 #footer .frow:empty { display: none; }
-#footer .brandrow { min-height: 24px; }
+#footer .brandrow { min-height: 24px; align-items: baseline; }
+/* the mark's baseline sits 30% above its bottom edge (the y descender): drop it so "syn" and the version share a baseline */
+#footer .brandrow .mark-sm { height: 12px; position: relative; top: 2px; transform: translateY(.5px); }
 #footer .update-pill { margin-left: auto; }
 .update-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--accent);
   color: #000; font-weight: 600; font-size: 11.5px; white-space: nowrap; animation: up .3s ease-out; }
