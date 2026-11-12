@@ -1,0 +1,36 @@
+# The whole Premiere → SYN → Premiere workflow with nothing mocked on the SYN side: the
+# panel's real code talks to the real app (`python -m syn --serve`) over HTTP and over the
+# file mailbox, SYN syncs real footage files, and the synced XML must put every clip on
+# the right frame. Runs on Mac and Windows, where people use it.
+name: Round trip
+
+on:
+  pull_request:
+    paths: ['syn/**', 'premiere/**', 'tests/**', '.github/workflows/roundtrip.yml']
+  push:
+    branches: [main]
+    paths: ['syn/**', 'premiere/**', 'tests/**', '.github/workflows/roundtrip.yml']
+
+jobs:
+  roundtrip:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install SYN's engine dependencies (no window needed)
+        run: python -m pip install numpy imageio-ffmpeg certifi
+      - name: Panel ↔ app round trip
+        shell: bash
+        env:
+          PYTHON: python
+        run: node --test premiere/tests/roundtrip.test.js
