@@ -1,16 +1,9 @@
-// Renders Session state into the panel. HTML builders are pure functions so they can
-// be tested without a DOM. Events use delegation on data-action (UXP ignores inline handlers).
+// Renders Session state into the panel. Kept deliberately small: one Sync button, one card
+// for the current sync with a single overall score. Per-clip detail lives in the Syn app.
+// HTML builders are pure so they can be tested without a DOM; events use data-action
+// delegation (UXP ignores inline handlers).
 
 "use strict";
-
-const STATE_LABEL = {
-  queued: "Queued",
-  analyzing: "Syncing",
-  review: "Ready to review in SYN",
-  done: "Synced",
-  failed: "Failed",
-  cancelled: "Cancelled",
-};
 
 function esc(s) {
   return String(s == null ? "" : s)
@@ -24,205 +17,174 @@ function pct(x) {
   return `${Math.round(Math.max(0, Math.min(1, Number(x) || 0)) * 100)}%`;
 }
 
-function scoreClass(c) {
-  if (c == null) return "";
-  if (c >= 0.85) return "high";
-  if (c >= 0.6) return "mid";
-  return "low";
+/** Overall confidence in words, so a number never has to be interpreted. */
+function verdict(c) {
+  if (c == null) return { cls: "", word: "Synced" };
+  if (c >= 0.85) return { cls: "high", word: "Looks great" };
+  if (c >= 0.6) return { cls: "mid", word: "Check a few clips in Syn" };
+  return { cls: "low", word: "Needs a look in Syn" };
 }
 
-function counts(clips) {
-  const c = { synced: 0, low: 0, unsynced: 0 };
-  for (const k of clips || []) c[k.status in c ? k.status : "unsynced"] += 1;
-  return c;
+/** What the Sync button will send. Selected clips win; otherwise the open sequence. */
+function target(ctx) {
+  const sel = (ctx && ctx.selection) || { media: 0, sequences: 0 };
+  if (sel.media) return { what: "selection", label: `Sync ${sel.media} clip${sel.media === 1 ? "" : "s"}`, alt: ctx.sequence ? "sequence" : null };
+  if (sel.sequences) return { what: "selection", label: "Sync selected sequence", alt: null };
+  if (ctx && ctx.sequence) return { what: "sequence", label: "Sync sequence", alt: null };
+  return { what: null, label: "Sync", alt: null };
 }
 
-// Clips needing attention first: unsynced, then low, then by confidence ascending.
-function sortClips(clips) {
-  const rank = { unsynced: 0, low: 1, synced: 2 };
-  return (clips || []).slice().sort((a, b) => {
-    const r = (rank[a.status] ?? 0) - (rank[b.status] ?? 0);
-    return r || (a.confidence || 0) - (b.confidence || 0);
-  });
+/** The one sync worth showing: something running, then something waiting to import, then the newest. */
+function currentJob(jobs) {
+  const list = (jobs || []).filter((j) => j.state !== "cancelled");
+  return (
+    list.find((j) => j.state === "queued" || j.state === "analyzing") ||
+    list.find((j) => j.state === "review") ||
+    list.find((j) => j.state === "done" && !(j.local && j.local.imported)) ||
+    list[0] ||
+    null
+  );
 }
 
-const DOT = { synced: "#ccff4d", low: "#ffb359", unsynced: "#ff6b66" };
-
-function jobHtml(job, expanded) {
-  const st = job.state;
+function cardHtml(job) {
+  if (!job) return "";
+  const name = esc((job.result && job.result.sequenceName) || job.sequenceName || "Sync");
   const conf = job.result && job.result.confidence;
-  const clips = (conf && conf.clips) || [];
-  const name = (job.result && job.result.sequenceName) || job.sequenceName || job.name || "Sync";
-  let badge = `<div class="badge">${esc(STATE_LABEL[st] || st)}</div>`;
-  if ((st === "done" || st === "review") && conf && conf.overall != null) {
-    badge = `<div class="badge ${scoreClass(conf.overall)}">${pct(conf.overall)} sure</div>`;
-  }
-  let body = "";
+  const overall = conf && conf.overall != null ? conf.overall : null;
+  const st = job.state;
   if (st === "queued" || st === "analyzing") {
-    body += `<div class="job-stage">${esc(job.stage || STATE_LABEL[st])}</div>`;
-    body += `<div class="bar"><div class="bar-fill" style="width:${pct(job.progress)}"></div></div>`;
-  } else if (st === "failed") {
-    body += `<div class="job-stage">${esc((job.error && job.error.message) || "SYN couldn't sync this.")}</div>`;
-  } else if (st === "review") {
-    body += `<div class="job-stage">Check it in SYN, then hit Send to Premiere.</div>`;
+    return `<div class="title">${name}</div><div class="line">${esc(job.stage || "Syncing…")}</div>` +
+      `<div class="bar"><div class="bar-fill" style="width:${pct(job.progress)}"></div></div>` +
+      `<div class="row end"><div class="link" data-action="cancel" data-id="${esc(job.id)}">Cancel</div></div>`;
   }
-  if (clips.length) {
-    const c = counts(clips);
-    const n = clips.length;
-    body += `<div class="split">` +
-      (c.synced ? `<div class="split-synced" style="width:${(c.synced / n) * 100}%"></div>` : "") +
-      (c.low ? `<div class="split-low" style="width:${(c.low / n) * 100}%"></div>` : "") +
-      (c.unsynced ? `<div class="split-unsynced" style="width:${(c.unsynced / n) * 100}%"></div>` : "") +
-      `</div>`;
-    body += `<div class="legend"><div class="legend-item">${c.synced} synced</div>` +
-      `<div class="legend-item">${c.low} low confidence</div>` +
-      `<div class="legend-item">${c.unsynced} not synced</div></div>`;
+  if (st === "failed") {
+    return `<div class="title">${name}</div><div class="line bad">${esc((job.error && job.error.message) || "Syn couldn't sync this.")}</div>`;
   }
-  let foot = "";
-  const left = clips.length
-    ? `<div class="link" data-action="toggle" data-id="${esc(job.id)}">${expanded ? "Hide clips" : `Show ${clips.length} clips`}</div>`
-    : `<div></div>`;
-  if (st === "done") {
-    const right = job.local && job.local.imported
-      ? `<div class="done-text">In your project ✓</div>`
-      : job.local && job.local.importing
-        ? `<div class="done-text">Importing…</div>`
-        : `<div class="btn small primary" data-action="import" data-id="${esc(job.id)}">Import</div>`;
-    foot = `<div class="job-foot">${left}${right}</div>`;
-  } else if (st === "queued" || st === "analyzing" || st === "review") {
-    foot = `<div class="job-foot">${left}<div class="link" data-action="cancel" data-id="${esc(job.id)}">Cancel</div></div>`;
-  } else if (clips.length) {
-    foot = `<div class="job-foot">${left}<div></div></div>`;
-  }
-  let list = "";
-  if (expanded && clips.length) {
-    list = `<div class="clips">` + sortClips(clips).map((k) =>
-      `<div class="clip"><div class="clip-dot" style="background-color:${DOT[k.status] || DOT.unsynced}"></div>` +
-      `<div class="clip-name">${esc(k.name)}</div>` +
-      `<div class="clip-score">${k.status === "unsynced" ? "–" : pct(k.confidence)}</div></div>`
-    ).join("") + `</div>`;
-  }
-  return `<div class="job" data-job="${esc(job.id)}"><div class="job-head"><div class="job-name">${esc(name)}</div>${badge}</div>${body}${foot}${list}</div>`;
+  const v = verdict(overall);
+  const score = overall != null ? `<div class="score ${v.cls}">${pct(overall)}</div>` : "";
+  let action;
+  if (st === "review") action = `<div class="line">Check it in Syn, then hit Send to Premiere.</div>`;
+  else if (job.local && job.local.imported) action = `<div class="line ok">In your project ✓</div>`;
+  else if (job.local && job.local.importing) action = `<div class="line">Importing…</div>`;
+  else action = `<div class="btn primary" data-action="import" data-id="${esc(job.id)}">Import to Premiere</div>`;
+  return `<div class="row">${score}<div class="col"><div class="title">${name}</div><div class="line">${esc(v.word)}</div></div></div>${action}`;
 }
 
 function connView(state) {
-  const v = state.hello && state.hello.version ? ` ${state.hello.version}` : "";
   switch (state.conn) {
     case "connected":
-      return { dot: "on", text: `SYN${v}${state.mode === "file" ? " · local" : ""}` };
+      return { dot: "on", text: "Connected" };
     case "pair":
-      return { dot: "warn", text: "Not connected", banner: "SYN is open. Connect this panel to it once.", button: "Connect" };
+      return { dot: "warn", text: "Not connected", banner: "Connect this panel to Syn once.", button: "Connect" };
     case "pairing":
-      return { dot: "warn", text: "Waiting…", banner: "Click Allow in SYN to connect Premiere." };
+      return { dot: "warn", text: "Waiting…", banner: "Click Allow in Syn." };
     case "denied":
-      return { dot: "off", text: "Blocked", banner: "SYN said no. Try again if that was a mistake.", button: "Try again" };
+      return { dot: "off", text: "Blocked", banner: "Syn said no.", button: "Try again" };
     case "mismatch":
-      return { dot: "off", text: "Update needed", banner: "This panel doesn't match your SYN version. Update SYN and it updates the panel too." };
+      return { dot: "off", text: "Update needed", banner: "Update available, open Syn to update." };
     case "offline":
-      return { dot: "off", text: "Open SYN", banner: null };
+      return { dot: "off", text: "Open Syn" };
     default:
-      return { dot: "", text: "Looking for SYN…" };
+      return { dot: "", text: "Looking for Syn…" };
   }
 }
 
+// SYN's mark: "syn" + the lime sync link (two dots joined by a line), as on the app and site.
 function drawMark(el) {
   if (!el) return;
-  el.innerHTML = [8, 14, 18, 11, 6].map((h) => `<div class="mark-bar" style="height:${h}px"></div>`).join("");
+  el.innerHTML = `<div class="word">syn</div><div class="link-mark"><div class="link-dot"></div><div class="link-line"></div><div class="link-dot"></div></div>`;
 }
 
 function mount(doc, session, wave) {
   const $ = (id) => doc.getElementById(id);
-  const expanded = new Set();
-  let lastJobsHtml = "";
+  let lastCard = "";
+  let alt = null;
 
   doc.addEventListener("click", (ev) => {
     let t = ev.target;
     while (t && t !== doc.body && !(t.getAttribute && t.getAttribute("data-action"))) t = t.parentNode;
     if (!t || !t.getAttribute) return;
+    if (t.classList && t.classList.contains("disabled")) return;
     const action = t.getAttribute("data-action");
     const id = t.getAttribute("data-id");
-    if (t.classList && t.classList.contains("disabled")) return;
-    if (action === "send-sequence") session.send("sequence");
-    else if (action === "send-selection") session.send("selection");
+    if (action === "sync") {
+      const tg = target(session.state.context);
+      if (tg.what) session.send(tg.what);
+    } else if (action === "sync-alt" && alt) session.send(alt);
     else if (action === "pair") session.pair();
+    else if (action === "update") session.updatePlugin();
     else if (action === "reconnect") session.ensureConnected(true);
     else if (action === "import") session.importJob(id);
     else if (action === "cancel") session.cancel(id);
-    else if (action === "toggle") {
-      if (expanded.has(id)) expanded.delete(id);
-      else expanded.add(id);
-      render(session.state, true);
-    }
   });
-  $("auto-import").addEventListener("change", (ev) => session.setAutoImport(ev.target.checked));
 
-  function render(state, force) {
+  function render(state) {
     const cv = connView(state);
     $("dot").className = `dot ${cv.dot}`;
-    $("pill-text").textContent = cv.text;
-    const banner = cv.banner || (state.updateAvailable ? "A newer SYN panel is ready. Update it from SYN → Settings → Premiere." : null);
+    $("status-text").textContent = cv.text;
+
+    const update = !cv.banner && state.updateAvailable && state.conn === "connected";
+    const banner = cv.banner || (update ? "Update available, open Syn to update." : null);
+    const button = cv.button || (update ? "Update" : null);
     $("banner").className = banner ? "banner" : "banner hidden";
     $("banner-text").textContent = banner || "";
-    $("banner-btn").className = cv.button ? "btn small" : "btn small hidden";
-    $("banner-btn").textContent = cv.button || "";
+    $("banner-btn").className = button ? "btn small" : "btn small hidden";
+    $("banner-btn").textContent = button || "";
+    $("banner-btn").setAttribute("data-action", update ? "update" : "pair");
 
     const ctx = state.context || {};
-    $("ctx-seq").textContent = ctx.sequence ? ctx.sequence.name : ctx.project ? "None open" : "No project open";
-    const sel = ctx.selection || { media: 0, sequences: 0 };
-    const selParts = [];
-    if (sel.media) selParts.push(`${sel.media} clip${sel.media === 1 ? "" : "s"}`);
-    if (sel.sequences) selParts.push(`${sel.sequences} sequence${sel.sequences === 1 ? "" : "s"}`);
-    $("ctx-sel").textContent = selParts.length ? selParts.join(", ") : "Nothing";
+    const tg = target(ctx);
+    alt = tg.alt;
+    const ready = state.conn === "connected" && !state.busy && !!tg.what;
+    // One lime button at a time: while a result waits for Import, Sync steps back.
+    const waiting = (state.jobs || []).some((j) => j.state === "done" && j.local && !j.local.imported);
+    $("sync").className = `btn big${waiting ? "" : " primary"}${ready ? "" : " disabled"}`;
+    $("sync").textContent = tg.label;
+    let sub = "";
+    if (state.conn === "offline") sub = "Open Syn on this computer to start.";
+    else if (!ctx.project) sub = "Open a project.";
+    else if (!tg.what) sub = "Open a sequence, or select clips in the Project panel.";
+    else if (tg.alt) sub = `<span class="link" data-action="sync-alt">Sync “${esc(ctx.sequence.name)}” instead</span>`;
+    else if (tg.what === "sequence") sub = esc(ctx.sequence.name);
+    $("sub").innerHTML = sub;
 
-    const ready = state.conn === "connected" && !state.busy;
-    $("send-seq").className = `btn primary${ready && ctx.sequence ? "" : " disabled"}`;
-    $("send-sel").className = `btn${ready && (sel.media || sel.sequences) ? "" : " disabled"}`;
-    $("send-sel").textContent = sel.media ? `Sync ${sel.media} selected clip${sel.media === 1 ? "" : "s"}` : "Sync selected clips";
-    $("hint").textContent = ctx.project && !ctx.canExportXml
-      ? "Premiere older than 26.2: SYN rebuilds the timeline from your media."
-      : "";
-
-    // Busy row: the wave follows the newest active job, or loops while exporting/importing.
-    const active = (state.jobs || []).find((j) => j.local && j.local.mine && (j.state === "queued" || j.state === "analyzing"));
-    if (state.busy || active) {
-      $("busy").className = "busy";
-      $("busy-text").textContent = state.busy || active.stage || "Syncing…";
-      wave.set("working", state.busy ? 0.15 : active.progress || 0.05);
+    // The card: busy step, or the current sync.
+    const job = currentJob(state.jobs);
+    const running = job && (job.state === "queued" || job.state === "analyzing");
+    let body = "";
+    if (state.busy) body = `<div class="line center">${esc(state.busy)}</div>`;
+    else body = cardHtml(job);
+    $("card").className = body ? "card" : "card hidden";
+    if (state.busy || running) {
+      $("wave-box").className = "wave-box";
+      wave.set("working", state.busy ? 0.15 : job.progress || 0.05);
+    } else if (job && job.state === "done" && !state.busy) {
+      $("wave-box").className = "hidden";
+      wave.set("done");
     } else {
-      $("busy").className = "busy hidden";
+      $("wave-box").className = "hidden";
       wave.set("idle");
     }
-
-    if (state.notice) {
-      $("notice").className = `notice ${state.notice.kind}`;
-      $("notice").textContent = state.notice.text;
-    } else {
-      $("notice").className = "notice hidden";
+    if (body !== lastCard) {
+      $("card-body").innerHTML = body;
+      lastCard = body;
     }
-    $("auto-import").checked = !!state.autoImport;
 
-    const jobs = (state.jobs || []).filter((j) => j.state !== "cancelled").slice(0, 20);
-    const html = jobs.map((j) => jobHtml(j, expanded.has(j.id))).join("");
-    if (force || html !== lastJobsHtml) {
-      const box = $("jobs");
-      const scroll = box.scrollTop;
-      box.innerHTML = html;
-      box.scrollTop = scroll;
-      lastJobsHtml = html;
-    }
-    $("empty").className = jobs.length ? "empty hidden" : "empty";
+    const err = state.notice && state.notice.kind !== "ok" ? state.notice.text : "";
+    $("error").className = err ? `error ${state.notice.kind}` : "error hidden";
+    $("error").textContent = err;
   }
 
   session.on((s) => render(s));
-  render(session.state, true);
+  render(session.state);
 }
 
 function fatal(doc, e) {
-  const n = doc.getElementById("notice");
+  const n = doc.getElementById("error");
   if (n) {
-    n.className = "notice error";
-    n.textContent = `SYN panel couldn't start: ${(e && e.message) || e}`;
+    n.className = "error";
+    n.textContent = `Syn panel couldn't start: ${(e && e.message) || e}`;
   }
 }
 
-module.exports = { mount, fatal, drawMark, jobHtml, connView, sortClips, counts, scoreClass, esc };
+module.exports = { mount, fatal, drawMark, cardHtml, connView, currentJob, target, verdict, esc };

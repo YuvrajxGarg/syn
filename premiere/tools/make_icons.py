@@ -1,41 +1,45 @@
-"""Draws the panel and plugin-list icons (five lime waveform bars, SYN's mark).
+"""Builds the panel's icons from SYN's brand art so Premiere shows the same logo as the app.
 
-Run: python premiere/tools/make_icons.py
+- plugin.png (plugin list): the app icon, scaled down.
+- panel.png (panel tab): the lime sync link from the mark (two dots joined by a line),
+  drawn with padding so no edge touches the canvas.
+
+    python premiere/tools/make_icons.py [path/to/app-icon.png]
+
+The app icon defaults to brand/icon.png in the repo.
 """
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-OUT = Path(__file__).resolve().parent.parent / "plugin" / "icons"
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "premiere" / "plugin" / "icons"
 LIME = (204, 255, 77, 255)
-HEIGHTS = [0.40, 0.70, 0.95, 0.58, 0.32]  # same rhythm as the in-panel mark
 
 
-def draw(size: int, bg: bool) -> Image.Image:
-    scale = 8  # supersample, then downscale for clean edges
-    s = size * scale
+def link(size: int) -> Image.Image:
+    s = size * 8
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    pad = s * 0.12  # keep everything inside the canvas: nothing touches the edge
-    if bg:
-        d.rounded_rectangle([0, 0, s - 1, s - 1], radius=s * 0.22, fill=(24, 24, 27, 255))
-        pad = s * 0.22
-    inner = s - 2 * pad
-    n = len(HEIGHTS)
-    gap = inner / (n * 2 - 1)
-    for i, h in enumerate(HEIGHTS):
-        x0 = pad + i * 2 * gap
-        bh = inner * h
-        y0 = (s - bh) / 2
-        d.rounded_rectangle([x0, y0, x0 + gap, y0 + bh], radius=gap / 2, fill=LIME)
+    dot = s * 0.30  # dot diameter
+    top, bottom = s * 0.10, s * 0.90
+    cx = s / 2
+    line = s * 0.11
+    d.rounded_rectangle([cx - line / 2, top + dot / 2, cx + line / 2, bottom - dot / 2], radius=line / 2, fill=LIME)
+    d.ellipse([cx - dot / 2, top, cx + dot / 2, top + dot], fill=LIME)
+    d.ellipse([cx - dot / 2, bottom - dot, cx + dot / 2, bottom], fill=LIME)
     return img.resize((size, size), Image.LANCZOS)
 
 
 def main() -> None:
+    src = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "brand" / "icon.png"
     OUT.mkdir(parents=True, exist_ok=True)
-    for name, size, bg in [("panel", 23, False), ("plugin", 48, True)]:
-        draw(size, bg).save(OUT / f"{name}.png")
-        draw(size * 2, bg).save(OUT / f"{name}@2x.png")
+    app = Image.open(src).convert("RGBA")
+    for size, name in [(48, "plugin.png"), (96, "plugin@2x.png")]:
+        app.resize((size, size), Image.LANCZOS).save(OUT / name)
+    link(23).save(OUT / "panel.png")
+    link(46).save(OUT / "panel@2x.png")
     print("icons written to", OUT)
 
 

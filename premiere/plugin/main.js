@@ -88,7 +88,7 @@ async function boot() {
     },
   });
 
-  const wave = new Wave(document.getElementById("busy-wave"), { bars: 30, height: 36 });
+  const wave = new Wave(document.getElementById("wave"), { bars: 32, height: 40 });
   view.mount(document, session, wave);
   view.drawMark(document.getElementById("mark"));
 

@@ -230,6 +230,12 @@ class Bridge {
     });
   }
 
+  /** Asks SYN to reinstall its bundled (newer) panel. Returns "installed" | "needs_user". */
+  async updatePlugin() {
+    const res = await this._call("plugin.update", "POST", "/v1/plugin/update", {});
+    return (res && res.result) || "installed";
+  }
+
   async getJob(id) {
     if (this.mode === "http") return this._http("GET", `/v1/jobs/${encodeURIComponent(id)}`);
     if (this.mode === "file") {

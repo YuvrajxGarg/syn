@@ -75,37 +75,36 @@ test("version compare", () => {
   assert.equal(compareVersions("2.0", "2.0.0"), 0);
 });
 
-test("job card escapes names and lists problem clips first", () => {
-  const job = {
-    id: "j1",
-    state: "done",
-    result: {
-      sequenceName: "<b>Day 1</b> (SYN)",
-      confidence: {
-        overall: 0.9,
-        clips: [
-          { name: "ok.mov", confidence: 0.97, status: "synced" },
-          { name: "bad.mov", confidence: 0.2, status: "unsynced" },
-          { name: "meh.mov", confidence: 0.65, status: "low" },
-        ],
-      },
-    },
-    local: { imported: false },
-  };
-  const html = view.jobHtml(job, true);
+test("sync card shows one overall score, escaped, and an Import button", () => {
+  const job = { id: "j1", state: "done", result: { sequenceName: "<b>Day 1</b> (SYN)", confidence: { overall: 0.93, clips: [{ name: "a.mov" }] } }, local: { imported: false } };
+  const html = view.cardHtml(job);
   assert.ok(html.includes("&lt;b&gt;Day 1&lt;/b&gt;"));
   assert.ok(!html.includes("<b>Day"));
-  assert.ok(html.includes("90% sure"));
+  assert.ok(html.includes(">93%<"));
+  assert.ok(html.includes("Looks great"));
   assert.ok(html.includes('data-action="import"'));
-  assert.ok(html.indexOf("bad.mov") < html.indexOf("meh.mov") && html.indexOf("meh.mov") < html.indexOf("ok.mov"));
-  assert.deepEqual(view.counts(job.result.confidence.clips), { synced: 1, low: 1, unsynced: 1 });
+  assert.ok(!html.includes("a.mov"), "no per-clip detail in the panel");
+  assert.match(view.cardHtml(Object.assign({}, job, { local: { imported: true } })), /In your project/);
+  assert.equal(view.verdict(0.7).cls, "mid");
+  assert.equal(view.verdict(0.4).cls, "low");
 });
 
-test("job card handles 40 tracks worth of clips", () => {
-  const clips = Array.from({ length: 80 }, (_, i) => ({ name: `C${i}.mov`, confidence: i / 80, status: i < 5 ? "unsynced" : i < 20 ? "low" : "synced" }));
-  const html = view.jobHtml({ id: "x", state: "done", result: { sequenceName: "Big", confidence: { overall: 0.8, clips } }, local: {} }, false);
-  assert.ok(html.includes("Show 80 clips"));
-  assert.ok(html.includes("60 synced"));
+test("Sync button picks selected clips first, else the open sequence", () => {
+  assert.equal(view.target({ sequence: { name: "S" }, selection: { media: 3, sequences: 0 } }).label, "Sync 3 clips");
+  assert.equal(view.target({ sequence: { name: "S" }, selection: { media: 3, sequences: 0 } }).alt, "sequence");
+  assert.equal(view.target({ sequence: { name: "S" }, selection: { media: 0, sequences: 0 } }).what, "sequence");
+  assert.equal(view.target({ selection: { media: 0, sequences: 0 } }).what, null);
+});
+
+test("the card follows the sync that matters", () => {
+  const jobs = [
+    { id: "new", state: "done", local: { imported: true } },
+    { id: "waiting", state: "done", local: { imported: false } },
+    { id: "old", state: "failed", local: {} },
+  ];
+  assert.equal(view.currentJob(jobs).id, "waiting");
+  assert.equal(view.currentJob([{ id: "run", state: "analyzing", local: {} }].concat(jobs)).id, "run");
+  assert.equal(view.currentJob([]), null);
 });
 
 // ---- Premiere side ------------------------------------------------------------------
@@ -280,4 +279,15 @@ test("HTTP: a revoked token sends the panel back to Connect", async (t) => {
   await session.tick();
   assert.equal(session.state.conn, "pair");
   assert.equal(storage.m.has("syn.token"), false);
+});
+
+test("update banner: SYN bundles a newer panel and installs it on request", async (t) => {
+  const data = await tmpdir();
+  const mock = await F.startMock(data, ["--no-http", "--bundled", "1.4.0"]);
+  t.after(() => mock.stop());
+  const { session } = await harness(data, { ppro: F.makePpro().ppro, fetchImpl: blockedFetch() });
+  await session.ensureConnected(true);
+  assert.equal(session.state.updateAvailable, true);
+  assert.equal(await session.updatePlugin(), "installed");
+  assert.match(session.state.notice.text, /Panel updated/);
 });

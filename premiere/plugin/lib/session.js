@@ -195,6 +195,27 @@ class Session {
     }
   }
 
+  /** Banner "Update" button: SYN installs its newer panel; Premiere reloads it. */
+  async updatePlugin() {
+    this._emit({ busy: "Updating the panel…", notice: null });
+    try {
+      const result = await this.bridge.updatePlugin();
+      this._emit({
+        busy: null,
+        notice: {
+          kind: result === "needs_user" ? "info" : "ok",
+          text: result === "needs_user"
+            ? "Creative Cloud is asking to confirm the update. Click Install there."
+            : "Panel updated. Close and reopen it (or restart Premiere) to load the new version.",
+        },
+      });
+      return result;
+    } catch (e) {
+      this._emit({ busy: null, notice: { kind: "info", text: "Update available, open Syn to update." } });
+      return null;
+    }
+  }
+
   async cancel(jobId) {
     try {
       await this.bridge.cancelJob(jobId);

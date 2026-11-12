@@ -32,6 +32,7 @@ class Mock:
         self.approve = approve  # "auto" | "deny" | "never"
         self.speed = speed
         self.version = version
+        self.bundled = "1.0.0"
         self.jobs: dict[str, dict] = {}
         self.pairs: dict[str, dict] = {}
         self.tokens: set[str] = set()
@@ -41,7 +42,7 @@ class Mock:
 
     # ---- shared logic ----------------------------------------------------------
     def hello(self) -> dict:
-        return {"app": "Syn", "version": self.version, "api": 1, "platform": "mac", "plugin": {"bundled": "1.0.0"}}
+        return {"app": "Syn", "version": self.version, "api": 1, "platform": "mac", "plugin": {"bundled": self.bundled}}
 
     def create_job(self, body: dict) -> dict:
         src = body.get("source") or {}
@@ -112,6 +113,10 @@ class Mock:
         self._update(jid, importedAt=time.time(), importedAs=body.get("sequenceName"))
         return {}
 
+    def plugin_update(self) -> dict:
+        self.updates = getattr(self, "updates", 0) + 1
+        return {"result": "installed"}
+
     # ---- file transport -----------------------------------------------------------
     def file_loop(self) -> None:
         while not self.stopped.is_set():
@@ -126,6 +131,8 @@ class Mock:
                     resp = self.create_job(body)
                 elif op == "job.cancel":
                     resp = self.cancel(body.get("jobId", ""))
+                elif op == "plugin.update":
+                    resp = self.plugin_update()
                 elif op == "job.imported":
                     resp = self.imported(body.get("jobId", ""), body)
                 else:
@@ -220,6 +227,8 @@ class Mock:
                     return
                 if p == "/v1/jobs":
                     return self._err(mock.create_job(self._body()), 201)
+                if p == "/v1/plugin/update":
+                    return self._send(200, mock.plugin_update())
                 parts = p.split("/")
                 if len(parts) == 5 and parts[4] == "imported":
                     return self._err(mock.imported(parts[3], self._body()))
@@ -262,8 +271,10 @@ def main() -> None:
     ap.add_argument("--approve", choices=["auto", "deny", "never"], default="auto")
     ap.add_argument("--no-http", action="store_true", help="file transport only (like Premiere on macOS)")
     ap.add_argument("--speed", type=float, default=1.0)
+    ap.add_argument("--bundled", default="1.0.0", help="plugin.bundled reported by /v1/hello")
     a = ap.parse_args()
     mock = Mock(a.data_dir, a.auto_send, a.approve, a.speed)
+    mock.bundled = a.bundled
     threading.Thread(target=mock.file_loop, daemon=True).start()
     if a.no_http:
         print("mock SYN: file transport only at", mock.bridge, flush=True)
