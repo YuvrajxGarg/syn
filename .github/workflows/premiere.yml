@@ -1,0 +1,38 @@
+# Tests the Premiere panel and its installer hook, and builds the .ccx the app bundles.
+name: Premiere panel
+
+on:
+  pull_request:
+    paths: ['premiere/**', 'syn/premiere_install.py', 'tests/test_premiere_install.py', '.github/workflows/premiere.yml']
+  push:
+    branches: [main]
+    paths: ['premiere/**', 'syn/premiere_install.py', 'tests/test_premiere_install.py', '.github/workflows/premiere.yml']
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Panel tests (against the mock SYN, HTTP and file transports)
+        shell: bash
+        env:
+          PYTHON: python
+        run: node --test premiere/tests/plugin.test.js
+      - name: Installer hook tests
+        run: python -m unittest tests.test_premiere_install -v
+      - name: Build the .ccx
+        run: python premiere/build_ccx.py
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: Syn_premierepro.ccx
+          path: premiere/dist/Syn_premierepro.ccx

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div class="top">
+        <div class="brand">
+          <div class="mark" id="mark"></div>
+          <div class="word">SYN</div>
+        </div>
+        <div class="pill" id="pill" data-action="reconnect">
+          <div class="dot" id="dot"></div>
+          <div class="pill-text" id="pill-text">Looking for SYN…</div>
+        </div>
+      </div>
+
+      <div class="banner hidden" id="banner">
+        <div class="banner-text" id="banner-text"></div>
+        <div class="btn small hidden" id="banner-btn" data-action="pair">Connect</div>
+      </div>
+
+      <div class="card" id="context">
+        <div class="ctx-row">
+          <div class="ctx-label">Sequence</div>
+          <div class="ctx-value" id="ctx-seq">None open</div>
+        </div>
+        <div class="ctx-row">
+          <div class="ctx-label">Selected</div>
+          <div class="ctx-value" id="ctx-sel">Nothing</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="btn primary" id="send-seq" data-action="send-sequence">Sync sequence</div>
+        <div class="btn" id="send-sel" data-action="send-selection">Sync selected clips</div>
+      </div>
+      <div class="hint" id="hint"></div>
+
+      <div class="busy hidden" id="busy">
+        <div id="busy-wave"></div>
+        <div class="busy-text" id="busy-text"></div>
+      </div>
+
+      <div class="notice hidden" id="notice"></div>
+
+      <div class="section-head">
+        <div class="section-title">Syncs</div>
+        <label class="toggle">
+          <input type="checkbox" id="auto-import" checked />
+          <span>Auto-import</span>
+        </label>
+      </div>
+      <div class="jobs" id="jobs"></div>
+      <div class="empty" id="empty">
+        Send a sequence or clips. SYN lines them up by audio, you check it there, and the synced
+        sequence lands back here.
+      </div>
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>
