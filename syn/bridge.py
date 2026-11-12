@@ -14,6 +14,7 @@ import json
 import os
 import secrets
 import socket
+import socketserver
 import struct
 import sys
 import threading
@@ -506,11 +507,16 @@ class Bridge(object):
 class _Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
-    if os.name == "nt":
-        # Windows lets two servers bind the same port without this
-        def server_bind(self):
+
+    def server_bind(self):
+        if os.name == "nt":
+            # Windows lets two servers bind the same port without this
             self.socket.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_EXCLUSIVEADDRUSE", 0), 1)
-            ThreadingHTTPServer.server_bind(self)
+        # HTTPServer.server_bind also calls socket.getfqdn(), a reverse DNS lookup that can
+        # stall for many seconds on some Macs. We only ever listen on 127.0.0.1.
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name, self.server_port = host, port
 
 
 def _ws_frame(payload, opcode=1):
