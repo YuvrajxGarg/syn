@@ -1,0 +1,265 @@
+/* SYN panel. Colours follow the PXL app palette (same as the Syn app): near-black surfaces,
+   white text, lime accent #ccff4d. UXP supports a subset of CSS: flex only, no transitions,
+   animations, transforms or custom properties, so values are literal. */
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0f0f11;
+  color: #f0f0f0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+}
+.hidden {
+  display: none;
+}
+
+/* header */
+.top {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.brand {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+}
+/* Mark: brand/mark@2x.png (462x192), copied by tools/make_icons.py. */
+.mark {
+  height: 24px;
+  width: 58px;
+}
+.status {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  cursor: pointer;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  margin-right: 6px;
+  background-color: #5a5a60;
+}
+.dot.on {
+  background-color: #ccff4d;
+}
+.dot.warn {
+  background-color: #ffb359;
+}
+.dot.off {
+  background-color: #ff6b66;
+}
+.status-text {
+  font-size: 11px;
+  color: #8f8f95;
+}
+
+/* banner */
+.banner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background-color: #1b1f12;
+  border: 1px solid #3c4a17;
+}
+.banner.hidden {
+  display: none;
+}
+.banner-text {
+  flex: 1;
+  color: #e3f5b4;
+  margin-right: 8px;
+}
+
+/* buttons */
+.btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background-color: #212125;
+  border: 1px solid #2c2c31;
+  color: #f2f2f2;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:hover {
+  background-color: #2a2a2f;
+}
+.btn.primary {
+  background-color: #ccff4d;
+  border-color: #ccff4d;
+  color: #0b0b0c;
+}
+.btn.primary:hover {
+  background-color: #d8ff7a;
+}
+.btn.big {
+  height: 42px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.btn.small {
+  height: 24px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+.btn.disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.btn.hidden {
+  display: none;
+}
+.sub {
+  margin: 8px 2px 14px 2px;
+  color: #8f8f95;
+  font-size: 11px;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.link {
+  color: #c4f05a;
+  cursor: pointer;
+}
+
+/* the current sync */
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border-radius: 12px;
+  background-color: #17171a;
+  border: 1px solid #242428;
+}
+.card.hidden {
+  display: none;
+}
+.wave-box {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.wave {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 6px;
+}
+.wave-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+}
+.wave-row-1 {
+  align-items: flex-start;
+  margin-top: 3px;
+}
+.wave-bar {
+  width: 3px;
+  margin: 0 1px;
+  border-radius: 1px;
+  background-color: #2c2c31;
+}
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.row.end {
+  justify-content: flex-end;
+  margin: 10px 0 0 0;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.score {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-right: 12px;
+  color: #f0f0f0;
+}
+.score.high {
+  color: #ccff4d;
+}
+.score.mid {
+  color: #ffb359;
+}
+.score.low {
+  color: #ff6b66;
+}
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f4f4f4;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.line {
+  margin-top: 3px;
+  color: #8f8f95;
+  font-size: 11px;
+}
+.line.ok {
+  color: #c4f05a;
+  font-size: 12px;
+}
+.line.bad {
+  color: #ff9b97;
+}
+.line.center {
+  text-align: center;
+}
+.bar {
+  height: 4px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background-color: #26262b;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 4px;
+  border-radius: 2px;
+  background-color: #ccff4d;
+}
+.error {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  background-color: #2a1616;
+  color: #ffc4c1;
+}
+.error.info {
+  background-color: #1b1b1f;
+  color: #c8c8cc;
+}
+.error.hidden {
+  display: none;
+}
