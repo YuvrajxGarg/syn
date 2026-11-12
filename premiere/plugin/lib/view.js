@@ -92,7 +92,8 @@ function connView(state) {
 // SYN's mark: "syn" + the lime sync link (two dots joined by a line), as on the app and site.
 function drawMark(el) {
   if (!el) return;
-  el.innerHTML = `<div class="word">syn</div><div class="link-mark"><div class="link-dot"></div><div class="link-line"></div><div class="link-dot"></div></div>`;
+  // An image cut from the app icon, so it's identical to the app's logo on every OS and font.
+  el.innerHTML = `<img class="mark" src="icons/mark.png" alt="syn" />`;
 }
 
 function mount(doc, session, wave) {
